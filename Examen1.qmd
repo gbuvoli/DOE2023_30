@@ -1,0 +1,296 @@
+---
+title: "Diseño de experimentos"
+subtitle: "Examen 1 - Entrega"
+author:
+  - name: Gina Buvoli
+  - name: Linda 
+  - name: Lisa Puche
+  - name: Universidad del Norte, Barranquilla
+date: "11/11/2023"
+lang: es
+self-contained: true
+fontsize: 13pt
+toc: true
+toc-depth: 3
+number-sections: false
+format: html
+editor_options: 
+  chunk_output_type: inline
+editor: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE, message=FALSE}
+## mostrar siempre el código
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE, echo=FALSE}
+## disponibilidad del paquete ggplot2
+if(!require(ggplot2)) install.packages('ggplot2')
+require(ggplot2)
+
+## disponibilidad del paquete car
+if(!require(car)) install.packages('car')
+require(car)
+
+## disponibilidad del paquete gvlma
+if(!require(gvlma)) install.packages('gvlma')
+require(gvlma)
+
+```
+
+# Examen 1 - Diseño de experimentos
+
+## Instrucciones
+
+-   El examen puede ser realizado en grupo tiene un (1) ejercicio. El
+    puntaje asociado a cada item se encuentra entre ().
+-   El examen debe enviarse antes de la próxima clase a
+    jvelezv\@uninorte.edu.co.
+-   Use una probabilidad de error Tipo I de 5% para decidir si rechazar
+    o no los procedimientos de pruebas de hipótesis planteados en el
+    ex´amen.
+
+## Descripción del problema
+
+Uno de los problemas en la industria de la refrigeración es el espesor
+de la capa de pintura electrost´atica en el producto terminado (variable
+respuesta *y*, en *micrones*). Frozen, Inc. es una compañia nacional que
+produce, en promedio, *1500* refrigeradores por día. El proceso de
+pintura electrost´atica se encarga de darle color a los gabinetes
+met´alicos de las neveras en producción. La pintura se aplica en una
+cabina con condiciones controladas de temperatura, generalmente
+inmodificables. Sin embargo, la aplicación se parametriza controlando la
+presión de aire (variable **x1** en **psi**), la velocidad de salida de
+material (variable **x2** en **gramos/segundo**) y la velocidad de la
+banda transportadora (variable **x3** en cm/s). Puesto que debe
+garantizarse que el espesor de pintura cumpla con la norma internacional
+(supongamos que dicho valor es **δ0 ± 5**, con **δ0** conocido), es
+importante que todas las piezas pintadas cumplan con dicha
+especificación. Si el espesor promedio1 de la pieza es superior a lo
+establecido se generan costos por exceso de pintura (en *promedio
+COP\$18000/unidad*), mientras que cuando el espesor es menor, la
+probabilidad (conocida) de que la pieza deba ser reprocesada es **p (0
+\< p \< 1)** y el costo de reproceso asciende a *COP\$35000/unidad*.
+Aunque los ingenieros de proceso no creen que **x1**y **x2** interactúan
+para modificar **y**, deciden considerar esta alternativa en un posible
+modelo.
+
+**Questions**
+
+1.  ***(15) Generalidades.*** Defina la unidad experimental y represente
+    el proceso utilizando un modelo general. Enuncie los principios de
+    DOE y esquematice cómo los garantizaría en este caso. Muestre que,
+    en un DOE de 1FEF,$$ \sum_{i=1}^{n} \tau_i = 0 $$
+
+#### *Respuesta:*
+
+a)  La ***Unidad Experimental*** en este poblema es *el
+    **refrigerador*** al que le mediremos el espesor de la capa de
+    pintura.
+
+b)  ***Principios de DOE:***
+
+    *Aleatoriedad:* 
+    Es la base que fundamenta el diseño del experimento,
+    pues en ella se fundamentan los métodos estadísticos que se aplican.
+
+    Para este caso particular la aleatoriedad estaría presente en la
+    escogencia del **orden** en que se realizarán las corridas de los
+    tratamientos, para esto podríamos apoyarnos de alguna herramienta computacional que nos ayude a garantizarla. También es aleatorio el error intrínseco del proceso
+    mismo. 
+
+    Dependiendo del objetivo del experimento y el DOE que se escoja, se
+    podrían incorporar mas o menos elementos aleatorios, como la
+    escogencia del lote del material, maquinas y operarios involucrados.
+    Sin embargo, como en nuestro problema queremos enfocarnos en las
+    medidas de promedios, y no en variabilidad, no incorporaremos más
+    aleatoriedad al diseño.
+
+    *Replicabilidad*
+    Hace referencia a cada repetición independiente de se haga para cada combinación de factores. Esto no significa repetir las medidas, sino que se refiere a correr o ejecutar el proceso varias veces bajo las mismas condiciones y con los mismos factores.  Esto es importante porque nos ayuda a medir el error experimental, para luego verificar si las diferencias entre los datos son estadísticamente significativos.
+    Las réplicas también son importantes porque ayudan a mejorar la precisión del valor promedio obtenido para cada tratamiento.
+    
+    Para nuestro caso de estudio, la replicabilidad se aplicaría pintando varios refrigeradores de forma **consecutiva** bajo las mismas condiciones y la misma combinación de parámetros `x1`, `x2` y `x3`.
+    
+
+Los datos con los que trabajaremos son los siguientes:
+
+```{r}
+## read the data set
+datos <- read.table('https://www.dropbox.com/s/04juyoyl3di794d/batteries.txt?dl=1', 
+                    header = TRUE)
+
+## convert 'material' and 'temperature' to factors
+datos$material <- as.factor(datos$material)
+datos$temperature <- as.factor(datos$temperature)
+
+## see first 3 rows of the data
+head(datos, 3)
+```
+
+El número de réplicas puede obtenerse haciendo:
+
+```{r}
+## replicates per combination
+with(datos, tapply(life, list(material, temperature), length))
+```
+
+El número total de unidades experimentales es
+
+```{r}
+## how many runs?
+NROW(datos)
+```
+
+Como se discutió anteriormente, una vez leídos los datos procedemos a
+visualizarlos:
+
+```{r, message=FALSE, fig.width = 7, fig.height = 4.5, fig.align = 'center'}
+## boxplots for main effects
+par(mfrow = c(1, 2))
+boxplot(life ~ material, data = datos, las = 1, col = 2:4, 
+        xlab = 'Material', ylab = 'Battery life (hours)')
+
+boxplot(life ~ temperature, data = datos, las = 1, col = 2:4, 
+        xlab = 'Temperature (F)', ylab = 'Battery life (hours)')
+```
+
+La otra posibilidad es evaluar la existencia de posibles efectos de
+interacción entre `temperature` y `material`:
+
+```{r, message=FALSE, fig.width = 7, fig.height = 6, fig.align = 'center'}
+## boxplot for interactions
+par(mfrow = c(1, 1))
+boxplot(life ~ material*temperature, 
+        data = datos, las = 1, col = 2:4, 
+        xlab = 'Material/Temperature', ylab = 'Battery life (hours)')
+```
+
+Este mismo gráfico de interacción puede hacerse analizando los perfiles
+de la variable respuesta `life` dependiendo de los niveles de
+`temperature` y `material`:
+
+```{r, message=FALSE, fig.width = 7, fig.height = 4.5, fig.align = 'center'}
+## fixing temperature
+with(datos, 
+    interaction.plot(material, temperature, life,
+                     las = 1,
+                     lty = 1,
+                     lwd = 2,
+                     col = 2:4,
+                     main = "Battery life, fixed temperature"))
+
+## same fixing material
+with(datos, 
+     interaction.plot(temperature, material, life,
+                      las = 1,
+                      lty = 1,
+                      lwd = 2,
+                      col = 2:4, 
+                      main = "Battery life, fixed material"))
+
+```
+
+Ahora, procedamos a calcular algunas medidas de tendencia central,
+posición y dispersión:
+
+```{r}
+##  summary statistics 
+with(datos, tapply(life, list(material, temperature), mean))
+with(datos, tapply(life, list(material, temperature), sd))
+```
+
+### Construcción de la tabla ANOVA
+
+Ahora construimos la tabla ANOVA *incluyendo* el término de interacción:
+
+```{r}
+## ANOVA with interaction
+fit_interaction <- aov(life ~ material*temperature, data = datos)
+anova(fit_interaction)
+```
+
+La conclusión de este primer modelo es que la interacción entre
+`temperature` y `material`, definida como `material:temperatura` en el
+resultado de `anova(fit)`, es **no** significativa al 1%. Para más
+información acerca de la interfaz de `formula` en `R`, ver
+[aquí](http://conjugateprior.org/2013/01/formulae-in-r-anova/).
+
+Puesto que la interacción **no** es significativa al 10%, debemos
+remover este término del modelo y recalcularlo:
+
+```{r}
+## ANOVA with no interaction
+fit_no_interaction <- aov(life ~ material + temperature, data = datos)
+summary(fit_no_interaction)
+```
+
+La conclusión de la tabla ANOVA es que existe al menos un tipo de
+`material` para el que vida de las baterías es diferente de la media
+global. Además, existe también un nivel de `temperature` para el cual el
+nivel de vida de las baterias difiere sustancialmente de la media
+global. En otras palabras, que ambos factores seleccionados
+**influencian** considerablemente la vida media de las baterias.
+
+### Cuantificación del efecto
+
+Ahora procedemos a determinar la *la magnitud del efecto* de cada nivel
+de `material` y `temperatura` sobre la vida media de las baterías. Para
+ello utilizamos los estimadores de máxima verosimilitud obtenidos al
+emplear el método de mínimos cuadrados ordinarios en el modelo de
+Regresión Lineal Múltiple:
+
+```{r}
+## MLR for the batteries experiment
+fit_lm <- lm(life ~ material + temperature, data = datos)
+summary(fit_lm)
+```
+
+A partir de este resultado concluimos que utilizar el tipo de
+`material 3` tiene el mayor efecto sobre la vida media de las baterías,
+mientras que trabajar a $125^\circ$C reduce hasta en 80.67 horas la vida
+media de la batería.
+
+Qué podemos decir acerca de `material 2` vs. `1`? Para ello utilizamos
+HSD de Tukey:
+
+```{r, message=FALSE,fig.width = 6, fig.height = 6, fig.align = 'center'}
+## HSD test
+anova <- aov(fit_lm)
+TukeyHSD(anova, "material", ordered = TRUE)
+```
+
+Los resultados indican que la diferencia en la vida media de las
+baterías producidas con los materiales `3-1` es significativa.
+
+Si analizamos diferencias por `temperatura` se obtiene:
+
+```{r, message=FALSE,fig.width = 6, fig.height = 6, fig.align = 'center'}
+TukeyHSD(anova, "temperature", ordered = TRUE)
+```
+
+Así, los niveles del factor `temperatura` difieren entre ellos, siendo
+$15^\circ$C la mejor elección. Observe que la conclusión es *similar* a
+la que obtuvimos al analizar los resultados numéricos.
+
+### Validación de supuestos
+
+Al igual que en 1FEF, debemos validar, sobre los errores del modelo, los
+supuestos de Normalidad, independencia, varianza constante y media cero.
+
+En `R` dicha validación se realiza sobre los *residuales* del modelo
+ajustado. En nuestro caso, este modelo está contenido en el objeto
+`fit_lm`.
+
+```{r}
+## validación de supuestos
+summary(gvlma(fit_lm))
+```
+
+**Conclusión:** Los resultados indican que los errores del modelo
+ajustado son independientes, siguen una distribución normal y tienen
+varianza constante. Por lo tanto, el modelo y las conclusiones que se
+deriven de él son válidas.
